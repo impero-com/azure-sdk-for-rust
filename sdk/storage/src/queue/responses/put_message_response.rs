@@ -1,5 +1,6 @@
 use azure_core::errors::AzureError;
 use azure_core::headers::{utc_date_from_rfc2822, CommonStorageResponseHeaders};
+use azure_core::util::to_str_without_bom;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use http::response::Response;
@@ -12,9 +13,10 @@ pub struct PutMessageResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename = "QueueMessagesList")]
 struct PutMessageResponseInternal {
     #[serde(rename = "QueueMessage")]
-    pub queue_message: QueueMessageInternal,
+    pub queue_messages: Vec<QueueMessageInternal>,
 }
 
 #[derive(Debug, Clone)]
@@ -44,20 +46,19 @@ impl std::convert::TryFrom<&Response<Bytes>> for PutMessageResponse {
     type Error = AzureError;
     fn try_from(response: &Response<Bytes>) -> Result<Self, Self::Error> {
         let headers = response.headers();
-        let body = response.body();
+        let body = to_str_without_bom(response.body())?;
 
         debug!("headers == {:?}", headers);
 
-        let received = &std::str::from_utf8(body)?[3..];
-        debug!("receieved == {:#?}", received);
-        let response: PutMessageResponseInternal = serde_xml_rs::from_reader(&body[3..])?;
+        let mut response: PutMessageResponseInternal = serde_xml_rs::from_str(body)?;
+        let queue_message = response.queue_messages.pop().expect("queue message");
 
         let queue_message = QueueMessage {
-            message_id: response.queue_message.message_id,
-            insertion_time: utc_date_from_rfc2822(&response.queue_message.insertion_time)?,
-            expiration_time: utc_date_from_rfc2822(&response.queue_message.expiration_time)?,
-            pop_receipt: response.queue_message.pop_receipt,
-            time_next_visible: utc_date_from_rfc2822(&response.queue_message.time_next_visible)?,
+            message_id: queue_message.message_id,
+            insertion_time: utc_date_from_rfc2822(&queue_message.insertion_time)?,
+            expiration_time: utc_date_from_rfc2822(&queue_message.expiration_time)?,
+            pop_receipt: queue_message.pop_receipt,
+            time_next_visible: utc_date_from_rfc2822(&queue_message.time_next_visible)?,
         };
 
         Ok(Self {
