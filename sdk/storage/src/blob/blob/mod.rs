@@ -214,7 +214,7 @@ impl Blob {
             .unwrap_or_else(String::new);
         trace!("content_language == {:?}", content_language);
 
-        let content_md5 = h.get_as_string(CONTENT_MD5).unwrap_or_else(String::new);
+        let content_md5 = h.get_as_string(CONTENT_MD5);
         trace!("content_md5 == {:?}", content_md5);
 
         let cache_control = h
@@ -287,7 +287,6 @@ impl Blob {
             Some(metadata)
         };
 
-        let content_md5 = h.get_as_string("x-ms-blob-content-md5");
         let content_crc64 = h.get_as_string("x-ms-content-crc64");
 
         // TODO: Retrieve the snapshot time from
