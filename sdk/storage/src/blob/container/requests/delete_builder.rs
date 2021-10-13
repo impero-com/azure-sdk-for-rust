@@ -10,6 +10,7 @@ pub struct DeleteBuilder<'a> {
     lease_id: Option<&'a LeaseId>,
     client_request_id: Option<ClientRequestId<'a>>,
     timeout: Option<Timeout>,
+    if_exists: bool,
 }
 
 impl<'a> DeleteBuilder<'a> {
@@ -19,6 +20,7 @@ impl<'a> DeleteBuilder<'a> {
             lease_id: None,
             client_request_id: None,
             timeout: None,
+            if_exists: false,
         }
     }
 
@@ -26,6 +28,7 @@ impl<'a> DeleteBuilder<'a> {
         lease_id: &'a LeaseId => Some(lease_id),
         client_request_id: ClientRequestId<'a> => Some(client_request_id),
         timeout: Timeout => Some(timeout),
+        if_exists: bool => if_exists,
     }
 
     pub async fn execute(self) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
@@ -44,12 +47,18 @@ impl<'a> DeleteBuilder<'a> {
             None,
         )?;
 
+        let accepted_status_codes: Vec<StatusCode> = if self.if_exists {
+            vec![StatusCode::ACCEPTED, StatusCode::NOT_FOUND]
+        } else {
+            vec![StatusCode::ACCEPTED]
+        };
+
         let _response = self
             .container_client
             .storage_client()
             .storage_account_client()
             .http_client()
-            .execute_request_check_status(request.0, StatusCode::ACCEPTED)
+            .execute_request_check_statuses(request.0, &accepted_status_codes)
             .await?;
 
         // TODO: Capture and return the response headers
